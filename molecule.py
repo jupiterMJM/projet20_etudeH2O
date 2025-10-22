@@ -15,6 +15,8 @@ class MoleculeH2O:
 
         self.initialize_molecule(temperature=temperature)
 
+        self.position_precedente = np.zeros(self.position.shape)
+
         
     def initialize_molecule(self, temperature):
         """
@@ -76,6 +78,7 @@ class MoleculeH2O:
         return matrix_force
         
 
-test = MoleculeH2O(15)
-print(test.vitesse)
-test.calcul_force()
+if __name__ == "__main__":
+    test = MoleculeH2O(15)
+    # print(test.vitesse)
+    test.calcul_force()
