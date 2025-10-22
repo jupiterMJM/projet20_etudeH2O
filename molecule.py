@@ -1,5 +1,6 @@
 import numpy as np
 
+
 class MoleculeH2O:
     def __init__(self, temperature=0):
         # constantes indépendantes du problème
@@ -16,6 +17,10 @@ class MoleculeH2O:
         self.initialize_molecule(temperature=temperature)
 
         self.position_precedente = np.zeros(self.position.shape)
+
+        self.history_centre_masse = []
+        self.history_energie_mecanique = []
+        self.history_temperature = []
 
         
     def initialize_molecule(self, temperature):
@@ -76,6 +81,18 @@ class MoleculeH2O:
         matrix_force = np.array([f_O, f_Ha, f_Hb])
         # note : les vecteurs u sont dans la base (x, y, z) donc matrix_force aussi
         return matrix_force
+    
+    def calcul_potentiel(self):
+        # TODO A FAIRE
+        return 1
+
+    def update_historique(self):
+        centre_masse = (self.mass_matrix.T @ self.position_precedente) / np.sum(self.mass_matrix)
+        energie_cinetique = np.sum(self.mass_matrix * self.vitesse**2 / 2)
+        temperature = energie_cinetique / (3*3-3) * 2 / self.k_b
+        self.history_centre_masse.append(centre_masse)
+        self.history_energie_mecanique.append(energie_cinetique)        # TODO ajouter energie potentielle
+        self.history_temperature.append(temperature)
         
 
 if __name__ == "__main__":
