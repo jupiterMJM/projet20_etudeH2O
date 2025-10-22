@@ -57,6 +57,25 @@ class MoleculeH2O:
         else:
             self.vitesse = np.zeros(self.position.shape)
 
+    def calcul_force(self):
+        # calculs préliminaires
+        u_OHa = self.position[1] - self.position[0]
+        r_OHa  = np.linalg.norm(u_OHa)
+        u_OHb = self.position[2] - self.position[0]
+        r_OHb = np.linalg.norm(u_OHb)
+        u_OHa = u_OHa/r_OHa
+        u_OHb = u_OHb/r_OHb
 
-    
+        cos_theta = np.dot(u_OHa, u_OHb)
+
+        f_Ha = self.K*(self.r_0 - r_OHa) * u_OHa + self.C / r_OHa * (np.cos(self.theta_0) - cos_theta) * (u_OHb - cos_theta * u_OHa)
+        f_Hb = self.K*(self.r_0 - r_OHb) * u_OHb + self.C / r_OHb * (np.cos(self.theta_0) - cos_theta) * (u_OHa - cos_theta * u_OHb)
+        f_O = -f_Ha - f_Hb
+        matrix_force = np.array([f_O, f_Ha, f_Hb])
+        # note : les vecteurs u sont dans la base (x, y, z) donc matrix_force aussi
+        return matrix_force
+        
+
 test = MoleculeH2O(15)
+print(test.vitesse)
+test.calcul_force()
