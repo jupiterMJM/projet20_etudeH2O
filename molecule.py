@@ -20,8 +20,13 @@ class MoleculeH2O:
         self.position_2precedente = np.zeros(self.position.shape)
 
         self.history_centre_masse = []
-        self.history_energie_mecanique = []
+        # self.history_energie_mecanique = []
+        self.history_energie_cinetique = []
+        self.history_energie_potentielle = []
         self.history_temperature = []
+        self.history_liaison_OHa = []
+        self.history_liaison_OHb = []
+        self.history_angle_HaOHb = []
 
         self.nb_iterations = 0
         self.dt = dt
@@ -38,9 +43,13 @@ class MoleculeH2O:
         # print(self.mass_matrix)
 
         # initialisation des positions
-        theta_init = np.random.uniform(0.9, 1.1) * self.theta_0
-        r_a = np.random.uniform(0.9, 1.1) * self.r_0
-        r_b = np.random.uniform(0.9, 1.1) * self.r_0
+        # theta_init = np.random.uniform(0.9, 1.1) * self.theta_0
+        # r_a = np.random.uniform(0.9, 1.1) * self.r_0
+        # r_b = np.random.uniform(0.9, 1.1) * self.r_0
+
+        theta_init = self.theta_0
+        r_a = self.r_0
+        r_b = self.r_0
 
         self.position = np.array([
             [0, 0, 0],
@@ -62,6 +71,8 @@ class MoleculeH2O:
             print("vitesse centre de masse", vitesse_centre_masse)
             self.vitesse = self.vitesse - vitesse_centre_masse
             print("vit sans cm", self.vitesse)
+            vitesse_centre_masse = (self.mass_matrix.T @ self.vitesse) / np.sum(self.mass_matrix)
+            print("vitesse centre de masse apres soustraction", vitesse_centre_masse)
 
             # recalibrage des vitesses
             T_prime = np.sum(self.mass_matrix * self.vitesse**2 / 2) / (3*3-3) * 2 / self.k_b
@@ -124,36 +135,59 @@ class MoleculeH2O:
         return self.calcul_cinetique() + self.calcul_potentiel(consider_before=True)
     
 
-    def update_historique(self):
+    def update_historique(self, check_convergence=False):
+        # print("______________________")
         centre_masse = (self.mass_matrix.T @ self.position_precedente) / np.sum(self.mass_matrix)
+        # print(centre_masse)
+        vitesse_centre_masse = (self.mass_matrix.T @ self.vitesse) / np.sum(self.mass_matrix)
+        # print(vitesse_centre_masse)
         energie_cinetique = self.calcul_cinetique()
-        energie_mecanique = energie_cinetique + self.calcul_potentiel(consider_before=True)
-        temperature = energie_cinetique / (3*3-3) * 2 / self.k_b
-        self.history_centre_masse.append(centre_masse)
-        self.history_energie_mecanique.append(energie_mecanique)
+        # energie_mecanique = energie_cinetique + self.calcul_potentiel(consider_before=True)
+        temperature = energie_cinetique / (3*3-3) / self.k_b
+        # self.history_centre_masse.append(centre_masse)
+        # self.history_energie_mecanique.append(energie_mecanique)
+        self.history_energie_cinetique.append(energie_cinetique)
+        self.history_energie_potentielle.append(self.calcul_potentiel(consider_before=True))
         self.history_temperature.append(temperature)
+
+        
+        r_OHa = np.linalg.norm(self.position_precedente[1] - self.position_precedente[0])
+        r_OHb = np.linalg.norm(self.position_precedente[2] - self.position_precedente[0])
+        u_OHa = (self.position_precedente[1] - self.position_precedente[0]) / r_OHa
+        u_OHb = (self.position_precedente[2] - self.position_precedente[0]) / r_OHb
+        cos_theta = np.dot(u_OHa, u_OHb)
+        theta = np.arccos(cos_theta)
+        self.history_liaison_OHa.append(r_OHa)
+        self.history_liaison_OHb.append(r_OHb)
+        self.history_angle_HaOHb.append(theta)
 
 
         # verification des conditions de convergence
         # ATTENTION: LE SYSTEME DOIT ETRE MICROCANONIQUE POUR QUE CELA SOIT VALIDE
-        condition_vg = np.all(np.abs(centre_masse - 0) <= 1e-8) # en m/s
-        condition_em = np.abs((energie_mecanique - self.energie_meca_temps0) / (self.energie_meca_temps0 - 0)) < 5e-4
-        if not condition_vg:
-            print(f"Attention: le centre de masse s'éloigne de l'origine: {centre_masse} m")
-        if not condition_em:
-            print(f"Attention: l'énergie mécanique n'est pas conservée: {energie_mecanique} J (diff {(energie_mecanique - self.energie_meca_temps0) / (self.energie_meca_temps0 - 0):.2e})")
+        if check_convergence:
+            condition_vg = np.all(np.abs(vitesse_centre_masse - 0) <= 1e-8) # en m/s
+            condition_em = np.abs((energie_mecanique - self.energie_meca_temps0) / (self.energie_meca_temps0 - 0)) < 5e-4
+            if not condition_vg:
+                # ATTENTION : MODIFIER DT MODIFIE LA CONDITION DE VITESSE DU CENTRE DE MASSE
+                print(f"Attention: condition en vitesse du centre de masse non respectée: {vitesse_centre_masse} m")
+                raise Exception("fait chier")
+            if not condition_em:
+                print(f"Attention: l'énergie mécanique n'est pas conservée: {energie_mecanique} J (diff {(energie_mecanique - self.energie_meca_temps0) / (self.energie_meca_temps0 - 0):.2e})")
         
 
     def update_position(self, new_position, update_history=True):
         self.nb_iterations += 1
-        self.position_2precedente = self.position_precedente
-        self.position_precedente = self.position
-        self.position = new_position
+        self.position_2precedente = self.position_precedente.copy()
+        self.position_precedente = self.position.copy()
+        self.position = new_position.copy()
 
         self.vitesse = (self.position - self.position_2precedente) / (2 * self.dt)
 
         if update_history and self.nb_iterations % 10 == 0:
             self.update_historique()
+            # print("vitesse", self.vitesse)
+            # print("position", self.position)
+            # print("pp", self.position_2precedente)
         
         
 
