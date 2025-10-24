@@ -46,13 +46,17 @@ class MoleculeH2O:
 
         # initialisation des vitesses
         fact_vitesse_random = np.random.normal(loc=0, scale=1, size = self.position.shape)
+        # fact_vitesse_random = np.ones(self.position.shape)
         if temperature > 0:
             v_0 = np.sqrt(self.k_b * 2 * temperature / self.mass_matrix)
+            print("v_0", v_0)
             self.vitesse = fact_vitesse_random * v_0
-            # print(self.vitesse)
+            print("vit", self.vitesse)
             
             vitesse_centre_masse = (self.mass_matrix.T @ self.vitesse) / np.sum(self.mass_matrix)
+            print("vitesse centre de masse", vitesse_centre_masse)
             self.vitesse = self.vitesse - vitesse_centre_masse
+            print("vit sans cm", self.vitesse)
 
             # recalibrage des vitesses
             T_prime = np.sum(self.mass_matrix * self.vitesse**2 / 2) / (3*3-3) * 2 / self.k_b
@@ -60,6 +64,7 @@ class MoleculeH2O:
 
             self.vitesse = np.sqrt(2*temperature/T_prime) * self.vitesse
             # print(np.sum(self.mass_matrix * self.vitesse**2 / 2) / (3*3-3) * 2 / self.k_b)
+            # self.vitesse[:, -1] = 0  # on force la vitesse en z à 0
         
         else:
             self.vitesse = np.zeros(self.position.shape)
@@ -75,16 +80,41 @@ class MoleculeH2O:
 
         cos_theta = np.dot(u_OHa, u_OHb)
 
+
         f_Ha = self.K*(self.r_0 - r_OHa) * u_OHa + self.C / r_OHa * (np.cos(self.theta_0) - cos_theta) * (u_OHb - cos_theta * u_OHa)
         f_Hb = self.K*(self.r_0 - r_OHb) * u_OHb + self.C / r_OHb * (np.cos(self.theta_0) - cos_theta) * (u_OHa - cos_theta * u_OHb)
         f_O = -f_Ha - f_Hb
+        # print(f_O, f_Ha, f_Hb)
         matrix_force = np.array([f_O, f_Ha, f_Hb])
+        # print(matrix_force)
+
+        # assert np.sum(matrix_force, axis=0).all() == 0, f"la somme des forces doit être nulle {np.sum(matrix_force, axis=0)}"
         # note : les vecteurs u sont dans la base (x, y, z) donc matrix_force aussi
+        # assert np.all(matrix_force[:, -1] == 0), f"la force en z doit être nulle : {matrix_force[:, -1]}"
         return matrix_force
     
-    def calcul_potentiel(self):
-        # TODO A FAIRE
-        return 1
+    def calcul_potentiel(self, consider_before=True):
+        if not consider_before:
+            return 1/2 * self.K * ((np.linalg.norm(self.position[1] - self.position[0]) - self.r_0)**2 + (np.linalg.norm(self.position[2] - self.position[0]) - self.r_0)**2) + \
+                1/2 * self.C * (np.cos(self.theta_0) - np.dot((self.position[1] - self.position[0]) / np.linalg.norm(self.position[1] - self.position[0]), 
+                                                                (self.position[2] - self.position[0]) / np.linalg.norm(self.position[2] - self.position[0])))**2
+        else:
+            r_OHa_before = np.linalg.norm(self.position_precedente[1] - self.position_precedente[0])
+            r_OHb_before = np.linalg.norm(self.position_precedente[2] - self.position_precedente[0])
+            u_OHa_before = (self.position_precedente[1] - self.position_precedente[0]) / r_OHa_before
+            u_OHb_before = (self.position_precedente[2] - self.position_precedente[0]) / r_OHb_before
+            cos_theta_before = np.dot(u_OHa_before, u_OHb_before)
+
+            return 1/2 * self.K * ((r_OHa_before - self.r_0)**2 + (r_OHb_before - self.r_0)**2) + \
+                1/2 * self.C * (np.cos(self.theta_0) - cos_theta_before)**2
+
+
+    def calcul_cinetique(self):
+        return np.sum(self.mass_matrix * self.vitesse**2 / 2)
+    
+    def calcul_energie_mecanique(self):
+        return self.calcul_cinetique() + self.calcul_potentiel(consider_before=True)
+    
 
     def update_historique(self):
         centre_masse = (self.mass_matrix.T @ self.position_precedente) / np.sum(self.mass_matrix)
