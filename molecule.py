@@ -2,7 +2,7 @@ import numpy as np
 
 
 class MoleculeH2O:
-    def __init__(self, temperature=0):
+    def __init__(self, temperature=0, dt=None):
         # constantes indépendantes du problème
         self.m_H = 1.6735575e-27    # en kg
         self.m_O = 2.6566962e-26    # en kg
@@ -17,11 +17,16 @@ class MoleculeH2O:
         self.initialize_molecule(temperature=temperature)
 
         self.position_precedente = np.zeros(self.position.shape)
+        self.position_2precedente = np.zeros(self.position.shape)
 
         self.history_centre_masse = []
         self.history_energie_mecanique = []
         self.history_temperature = []
 
+        self.nb_iterations = 0
+        self.dt = dt
+
+        self.energie_meca_temps0 = self.calcul_cinetique() + self.calcul_potentiel(consider_before=False)
         
     def initialize_molecule(self, temperature):
         """
@@ -113,16 +118,43 @@ class MoleculeH2O:
         return np.sum(self.mass_matrix * self.vitesse**2 / 2)
     
     def calcul_energie_mecanique(self):
+        """
+        calcul à t-dt
+        """
         return self.calcul_cinetique() + self.calcul_potentiel(consider_before=True)
     
 
     def update_historique(self):
         centre_masse = (self.mass_matrix.T @ self.position_precedente) / np.sum(self.mass_matrix)
-        energie_cinetique = np.sum(self.mass_matrix * self.vitesse**2 / 2)
+        energie_cinetique = self.calcul_cinetique()
+        energie_mecanique = energie_cinetique + self.calcul_potentiel(consider_before=True)
         temperature = energie_cinetique / (3*3-3) * 2 / self.k_b
         self.history_centre_masse.append(centre_masse)
-        self.history_energie_mecanique.append(energie_cinetique)        # TODO ajouter energie potentielle
+        self.history_energie_mecanique.append(energie_mecanique)
         self.history_temperature.append(temperature)
+
+
+        # verification des conditions de convergence
+        # ATTENTION: LE SYSTEME DOIT ETRE MICROCANONIQUE POUR QUE CELA SOIT VALIDE
+        condition_vg = np.all(np.abs(centre_masse - 0) <= 1e-8) # en m/s
+        condition_em = np.abs((energie_mecanique - self.energie_meca_temps0) / (self.energie_meca_temps0 - 0)) < 5e-4
+        if not condition_vg:
+            print(f"Attention: le centre de masse s'éloigne de l'origine: {centre_masse} m")
+        if not condition_em:
+            print(f"Attention: l'énergie mécanique n'est pas conservée: {energie_mecanique} J (diff {(energie_mecanique - self.energie_meca_temps0) / (self.energie_meca_temps0 - 0):.2e})")
+        
+
+    def update_position(self, new_position, update_history=True):
+        self.nb_iterations += 1
+        self.position_2precedente = self.position_precedente
+        self.position_precedente = self.position
+        self.position = new_position
+
+        self.vitesse = (self.position - self.position_2precedente) / (2 * self.dt)
+
+        if update_history and self.nb_iterations % 10 == 0:
+            self.update_historique()
+        
         
 
 if __name__ == "__main__":
