@@ -11,8 +11,9 @@ class MoleculeH2O:
         self.theta_0 = np.deg2rad(104.45)   # en rad
 
         # constantes calculées en 0e et 1e question
-        self.K = 794        # N/m
-        self.C = 2.94e-18   # N.m.rad^-2
+        self.K = 815#794        # N/m
+        self.C = 7.39e-19# 2.94e-18   # N.m.rad^-2
+        # self.C = 1e-16
 
         self.initialize_molecule(temperature=temperature)
 
@@ -150,7 +151,7 @@ class MoleculeH2O:
         self.history_energie_potentielle.append(self.calcul_potentiel(consider_before=True))
         self.history_temperature.append(temperature)
 
-        
+
         r_OHa = np.linalg.norm(self.position_precedente[1] - self.position_precedente[0])
         r_OHb = np.linalg.norm(self.position_precedente[2] - self.position_precedente[0])
         u_OHa = (self.position_precedente[1] - self.position_precedente[0]) / r_OHa

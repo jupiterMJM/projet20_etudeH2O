@@ -7,7 +7,7 @@ import numpy as np
 #####################################################"
 ## CONFIGURATION
 #####################################################
-temperature = 1  # en K
+temperature = 300  # en K
 dt =  1/100 * 1/(3756e2 * 3e8) /4 # pas de temps en s
 nb_molecules = 5
 print(f"dt = {dt:.2e} s")
@@ -21,7 +21,7 @@ for molecule in all_molecules:
     molecule.position_precedente = molecule.position.copy()
     molecule.position += molecule.vitesse * dt + molecule.calcul_force() * dt**2 / (2 * molecule.mass_matrix)
 
-for _step in tqdm(range(50000)):
+for _step in tqdm(range(100000)):
     for molecule in all_molecules:
         force = molecule.calcul_force()
         next_position = 2 * molecule.position - molecule.position_precedente + force * dt**2 / molecule.mass_matrix #t+dt
