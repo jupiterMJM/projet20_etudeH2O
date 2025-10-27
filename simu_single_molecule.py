@@ -2,13 +2,16 @@ from molecule import MoleculeH2O
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
-
+import matplotlib.animation as animation
+from scipy.fft import fft, fftfreq
+from scipy.signal import windows
 
 #####################################################"
 ## CONFIGURATION
 #####################################################
 temperature = 300  # en K
-dt =  1/100 * 1/(3756e2 * 3e8) /4 # pas de temps en s
+dt =  1/100 * 1/(3756e2 * 3e8) # pas de temps en s
+nb_step = 100000
 print(f"dt = {dt:.2e} s")
 print("ATTENTION, Le systeme doit etre microcanonique pour que la simulation soit valide (pas de force de langevin)" )
 #####################################################
@@ -41,10 +44,10 @@ print(molecule.energie_meca_temps0)
 
 input("click enter to start simulation...")
 
-for step in tqdm(range(100000)):
+for step in tqdm(range(nb_step)):
     force = molecule.calcul_force()
     next_position = 2 * molecule.position - molecule.position_precedente + force * dt**2 / molecule.mass_matrix #t+dt
-    molecule.update_position(next_position)
+    molecule.update_position(next_position, check_convergence=False)
     if step % 10 == 0:
         history_position_O.append(molecule.position[0].copy())
         history_position_Ha.append(molecule.position[1].copy())
@@ -53,7 +56,7 @@ for step in tqdm(range(100000)):
 
 
 
-import matplotlib.animation as animation
+
 
 # Prepare data for animation
 history_position_O = np.array(history_position_O)
@@ -83,7 +86,7 @@ def update(frame):
 
     # Define the plane and project the points onto it
     def project_onto_plane(point, plane_point, normal):
-        return point - np.dot(point - plane_point, normal) * normal
+        return point - np.dot(point, normal) * normal
 
     projected_O = project_onto_plane(p1, p1, normal_vector)
     projected_Ha = project_onto_plane(p2, p1, normal_vector)
@@ -106,59 +109,145 @@ def update(frame):
 
 ani = animation.FuncAnimation(fig, update, frames=len(history_position_O), interval=1, blit=True)
 ax.legend()
-plt.show()
-
-
-# # plotting
-# plt.figure(figsize=(10,5))
-# plt.plot(molecule.history_temperature)
-# plt.xlabel("Temps (x10)")
-# plt.ylabel("Température (K)")
-# plt.title(f"Evolution de la température du système (T0={temperature} K, dt={dt:.2e} s)")
-# plt.grid()
-
-# plt.figure(figsize=(10,5))
-# plt.plot(molecule.history_energie_mecanique)
-# plt.xlabel("Temps (x10)")
-# plt.ylabel("Em (K)")
-# plt.title(f"Evolution de la em du système (T0={temperature} K, dt={dt:.2e} s)")
-# plt.grid()
-
-
-# plt.figure(figsize=(10,5))
-# plt.plot(molecule.history_liaison_OHa, label="liaison O-Ha")
-# plt.plot(molecule.history_liaison_OHb, label="liaison O-Hb")
-# plt.xlabel("Temps (x10)")
-# plt.ylabel("Distance (m)")
-# plt.title(f"Evolution des liaisons O-H du système (T0={temperature} K, dt={dt:.2e} s)")
-# plt.legend()
-# plt.grid()
-
-
-# # TF sur les rayons O-H
-# plt.figure(figsize=(10,5))
-# mask = np.hamming(len(molecule.history_temperature))
-# temp_array = np.array(molecule.history_liaison_OHa) * mask
-# temp_fft = np.fft.fft(temp_array - np.mean(temp_array))
-# freqs = np.fft.fftfreq(len(temp_array), d=molecule.dt * 10)  # facteur 10 car on enregistre toutes les 10 itérations
-
-# lambda_moins1 = np.array((1595e2, 3657e2, 3756e2))  # en m^-1
-# omega = 2 * np.pi * lambda_moins1 * 3e8  # en rad/s
-# for omega_i in omega:
-#     for omega_j in omega:
-#         print(omega_i, omega_j)
-#         diff_omega = omega_i - omega_j
-#         lbd_to_plot = diff_omega / (2 * np.pi * 3e8) / 100  # en cm^-1
-#         print(lbd_to_plot)
-#         plt.axvline(x=lbd_to_plot, color='r', linestyle='--')
-#         diff_omega = omega_i + omega_j
-#         lbd_to_plot = diff_omega / (2 * np.pi * 3e8) / 100  # en cm^-1
-#         plt.axvline(x=lbd_to_plot, color='r', linestyle='--')
-
-
-# plt.plot(freqs[:len(freqs)//2]/3e8/100, np.log(np.abs(temp_fft)[:len(temp_fft)//2]))
-# plt.xlabel("Fréquence (Hz)")
-# plt.ylabel("Amplitude FFT")
-# plt.title(f"TF de la température (T0={temperature} K, dt={dt:.2e} s)")
-# plt.grid()
 # plt.show()
+
+
+# plotting
+plt.figure(figsize=(10,5))
+plt.plot(molecule.history_temperature)
+average_temperature = np.cumsum(molecule.history_temperature) / np.arange(1, len(molecule.history_temperature) + 1)
+plt.plot(average_temperature, label="Température moyenne")
+plt.xlabel("Temps (x10)")
+plt.ylabel("Température (K)")
+plt.title(f"Evolution de la température du système (T0={temperature} K, dt={dt:.2e} s)")
+plt.grid()
+
+plt.figure(figsize=(10,5))
+plt.plot(molecule.history_energie_mecanique)
+plt.xlabel("Temps (x10)")
+plt.ylabel("Em (K)")
+plt.title(f"Evolution de la em du système (T0={temperature} K, dt={dt:.2e} s)")
+plt.grid()
+
+
+plt.figure(figsize=(10,5))
+plt.plot(molecule.history_liaison_OHa, label="liaison O-Ha")
+plt.plot(molecule.history_liaison_OHb, label="liaison O-Hb")
+plt.xlabel("Temps (x10)")
+plt.ylabel("Distance (m)")
+plt.title(f"Evolution des liaisons O-H du système (T0={temperature} K, dt={dt:.2e} s)")
+plt.legend()
+plt.grid()
+
+# plot de l'évolution de l'énergie cinétique, de l'énergie potentielle et de l'énergie mécanique
+plt.figure(figsize=(10,5))
+plt.plot(molecule.history_energie_cinetique, label="Ec")
+plt.plot(molecule.history_energie_potentielle, label="Ep")
+plt.plot(molecule.history_energie_mecanique, label="Em")
+plt.xlabel("Temps (x10)")
+plt.ylabel("Energie (J)")
+plt.title(f"Evolution des énergies du système (T0={temperature} K, dt={dt:.2e} s)")
+plt.legend()
+
+
+# FFT pour la liaison O-Ha
+r_OHa = np.array(molecule.history_liaison_OHa)
+N = len(r_OHa)
+win = windows.hann(N)
+signal = r_OHa - np.mean(r_OHa)
+signal_windowed = signal * win
+fft_vals = fft(signal_windowed)
+freqs = fftfreq(N, d=dt*molecule.save_one_on_historique)
+mask = freqs > 0
+freqs_pos = freqs[mask]
+# amp_pos = 2.0 / N * np.abs(fft_vals[mask])  # facteur 2 pour spectre mono-face
+wavenumbers_cm = freqs_pos / (3e10)  # conversion Hz -> cm^-1
+plt.figure(figsize=(8,5))
+plt.plot(wavenumbers_cm, np.abs(fft_vals[mask]))
+# plt.xlim(0, 4000)   
+plt.xlabel(r"Nombres d'onde $\tilde{\nu}$ (cm$^{-1}$)")
+plt.ylabel("Amplitude FFT (a.u.)")
+plt.title("Spectre FFT de $r_{OHa}(t)$ — abscisse en 1/λ (cm$^{-1}$)")
+plt.grid(True)
+plt.tight_layout()
+
+# FFT pour la liaison O-Hb
+r_OHb = np.array(molecule.history_liaison_OHb)
+N = len(r_OHb)
+win = windows.hann(N)
+signal = r_OHb - np.mean(r_OHb)
+signal_windowed = signal * win
+fft_vals = fft(signal_windowed)
+freqs = fftfreq(N, d=dt*molecule.save_one_on_historique)
+mask = freqs > 0
+freqs_pos = freqs[mask]
+# amp_pos = 2.0 / N * np.abs(fft_vals[mask])  # facteur 2 pour spectre mono-face
+wavenumbers_cm = freqs_pos / (3e10)  # conversion Hz -> cm^-1
+plt.figure(figsize=(8,5))
+plt.plot(wavenumbers_cm, np.abs(fft_vals[mask]))
+# plt.xlim(0, 4000)   
+plt.xlabel(r"Nombres d'onde $\tilde{\nu}$ (cm$^{-1}$)")
+plt.ylabel("Amplitude FFT (a.u.)")
+plt.title("Spectre FFT de $r_{OHb}(t)$ — abscisse en 1/λ (cm$^{-1}$)")
+plt.grid(True)
+plt.tight_layout()
+
+# plot de l'angle HOH
+plt.figure(figsize=(10, 5))
+plt.plot(molecule.history_angle_HaOHb)
+plt.xlabel("Temps (x10)")
+plt.ylabel("Angle Ha-O-Hb (rad)")
+plt.title(f"Evolution de l'angle Ha-O-Hb du système (T0={temperature} K, dt={dt:.2e} s)")
+plt.grid()
+
+
+# FFT pour l'angle Ha-O-Hb
+theta = np.array(molecule.history_angle_HaOHb)
+N = len(theta)
+win = windows.hann(N)
+signal = theta - np.mean(theta)
+signal_windowed = signal * win
+fft_vals = fft(signal_windowed)
+freqs = fftfreq(N, d=dt*molecule.save_one_on_historique)
+mask = freqs > 0
+freqs_pos = freqs[mask]
+# amp_pos = 2.0 / N * np.abs(fft_vals[mask])  # facteur 2 pour spectre mono-face
+wavenumbers_cm = freqs_pos / (3e10)  # conversion Hz -> cm^-1
+plt.figure(figsize=(8,5))
+plt.plot(wavenumbers_cm, np.abs(fft_vals[mask]))
+# plt.xlim(0, 4000)   
+plt.xlabel(r"Nombres d'onde $\tilde{\nu}$ (cm$^{-1}$)")
+plt.ylabel("Amplitude FFT (a.u.)")
+plt.title("Spectre FFT de $theta(t)$ — abscisse en 1/λ (cm$^{-1}$)")
+plt.grid(True)
+plt.tight_layout()
+
+
+# etude des degrés de liberté
+N = len(molecule.history_vitesse_O)
+freqs = fftfreq(N, d=dt*molecule.save_one_on_historique)
+mask = freqs > 0
+freqs_pos = freqs[mask]
+wavenumbers_cm = freqs_pos / (3e10)  # conversion Hz -> cm^-1
+densite_g = np.zeros(len(freqs_pos))
+for i, vitesse_atome in enumerate((molecule.history_vitesse_O,
+                                   molecule.history_vitesse_Ha,
+                                   molecule.history_vitesse_Hb)):
+
+    vitesse_array = np.array(vitesse_atome)  # (N, 3)
+    print(vitesse_array.shape)
+    fft_vals = fft(vitesse_array, axis=0) 
+    print(fft_vals.shape)
+    fft_vals = fft_vals[mask, :]  # garder fréquences positives
+    densite_g += molecule.mass_matrix[i] * np.sum(np.abs(fft_vals)**2, axis=1)
+# densite_g  /= (molecule.k_b * temperature * N * dt)
+print(densite_g)
+plt.figure()
+plt.plot(wavenumbers_cm, densite_g)
+
+print(np.sum(densite_g))
+
+plt.figure()
+plt.plot(wavenumbers_cm, np.cumsum(densite_g)/np.sum(densite_g) * 6)
+
+plt.show()

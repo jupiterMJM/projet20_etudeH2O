@@ -2,13 +2,14 @@ import numpy as np
 
 
 class MoleculeH2O:
-    def __init__(self, temperature=0, dt=None):
+    def __init__(self, temperature=0, dt=None, save_one_on_historique=1):
         # constantes indépendantes du problème
         self.m_H = 1.6735575e-27    # en kg
         self.m_O = 2.6566962e-26    # en kg
         self.k_b = 1.380649e-23     # en m^2.s^-2.K^-1
         self.r_0 = 95.8e-12         # en m
         self.theta_0 = np.deg2rad(104.45)   # en rad
+        self.save_one_on_historique = save_one_on_historique
 
         # constantes calculées en 0e et 1e question
         self.K = 815#794        # N/m
@@ -21,13 +22,16 @@ class MoleculeH2O:
         self.position_2precedente = np.zeros(self.position.shape)
 
         self.history_centre_masse = []
-        # self.history_energie_mecanique = []
+        self.history_energie_mecanique = []
         self.history_energie_cinetique = []
         self.history_energie_potentielle = []
         self.history_temperature = []
         self.history_liaison_OHa = []
         self.history_liaison_OHb = []
         self.history_angle_HaOHb = []
+        self.history_vitesse_O = []
+        self.history_vitesse_Ha = []
+        self.history_vitesse_Hb = []
 
         self.nb_iterations = 0
         self.dt = dt
@@ -136,20 +140,21 @@ class MoleculeH2O:
         return self.calcul_cinetique() + self.calcul_potentiel(consider_before=True)
     
 
-    def update_historique(self, check_convergence=False):
+    def update_historique(self, check_convergence=True, update_historique=True):
         # print("______________________")
         centre_masse = (self.mass_matrix.T @ self.position_precedente) / np.sum(self.mass_matrix)
         # print(centre_masse)
         vitesse_centre_masse = (self.mass_matrix.T @ self.vitesse) / np.sum(self.mass_matrix)
         # print(vitesse_centre_masse)
         energie_cinetique = self.calcul_cinetique()
-        # energie_mecanique = energie_cinetique + self.calcul_potentiel(consider_before=True)
+        energie_mecanique = energie_cinetique + self.calcul_potentiel(consider_before=True)
         temperature = energie_cinetique / (3*3-3) / self.k_b
-        # self.history_centre_masse.append(centre_masse)
-        # self.history_energie_mecanique.append(energie_mecanique)
-        self.history_energie_cinetique.append(energie_cinetique)
-        self.history_energie_potentielle.append(self.calcul_potentiel(consider_before=True))
-        self.history_temperature.append(temperature)
+        if update_historique:
+            # self.history_centre_masse.append(centre_masse)
+            self.history_energie_mecanique.append(energie_mecanique)
+            self.history_energie_cinetique.append(energie_cinetique)
+            self.history_energie_potentielle.append(self.calcul_potentiel(consider_before=True))
+            self.history_temperature.append(temperature)
 
 
         r_OHa = np.linalg.norm(self.position_precedente[1] - self.position_precedente[0])
@@ -158,9 +163,13 @@ class MoleculeH2O:
         u_OHb = (self.position_precedente[2] - self.position_precedente[0]) / r_OHb
         cos_theta = np.dot(u_OHa, u_OHb)
         theta = np.arccos(cos_theta)
-        self.history_liaison_OHa.append(r_OHa)
-        self.history_liaison_OHb.append(r_OHb)
-        self.history_angle_HaOHb.append(theta)
+        if update_historique:
+            self.history_liaison_OHa.append(r_OHa)
+            self.history_liaison_OHb.append(r_OHb)
+            self.history_angle_HaOHb.append(theta)
+            self.history_vitesse_O.append(self.vitesse[0].copy())
+            self.history_vitesse_Ha.append(self.vitesse[1].copy())
+            self.history_vitesse_Hb.append(self.vitesse[2].copy())
 
 
         # verification des conditions de convergence
@@ -176,7 +185,7 @@ class MoleculeH2O:
                 print(f"Attention: l'énergie mécanique n'est pas conservée: {energie_mecanique} J (diff {(energie_mecanique - self.energie_meca_temps0) / (self.energie_meca_temps0 - 0):.2e})")
         
 
-    def update_position(self, new_position, update_history=True):
+    def update_position(self, new_position, update_history=True, check_convergence=True):
         self.nb_iterations += 1
         self.position_2precedente = self.position_precedente.copy()
         self.position_precedente = self.position.copy()
@@ -184,8 +193,8 @@ class MoleculeH2O:
 
         self.vitesse = (self.position - self.position_2precedente) / (2 * self.dt)
 
-        if update_history and self.nb_iterations % 10 == 0:
-            self.update_historique()
+        if update_history and self.nb_iterations % self.save_one_on_historique == 0:
+            self.update_historique(check_convergence=check_convergence)
             # print("vitesse", self.vitesse)
             # print("position", self.position)
             # print("pp", self.position_2precedente)
