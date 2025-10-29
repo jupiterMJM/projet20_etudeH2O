@@ -2,7 +2,7 @@ import numpy as np
 
 
 class MoleculeH2O:
-    def __init__(self, temperature=0, dt=None, save_one_on_historique=1):
+    def __init__(self, temperature=0, dt=None, save_one_on_historique=1, gamma_langevin=1e11):
         # constantes indépendantes du problème
         self.m_H = 1.6735575e-27    # en kg
         self.m_O = 2.6566962e-26    # en kg
@@ -17,6 +17,8 @@ class MoleculeH2O:
         # self.C = 1e-16
 
         self.initialize_molecule(temperature=temperature)
+        self.temperature = temperature
+        self.gamma_langevin = gamma_langevin
 
         self.position_precedente = np.zeros(self.position.shape)
         self.position_2precedente = np.zeros(self.position.shape)
@@ -37,6 +39,7 @@ class MoleculeH2O:
         self.dt = dt
 
         self.energie_meca_temps0 = self.calcul_cinetique() + self.calcul_potentiel(consider_before=False)
+        # self.max_langevin_force = np.zeros((3, 3))
         
     def initialize_molecule(self, temperature):
         """
@@ -67,7 +70,7 @@ class MoleculeH2O:
         fact_vitesse_random = np.random.normal(loc=0, scale=1, size = self.position.shape)
         # fact_vitesse_random = np.ones(self.position.shape)
         if temperature > 0:
-            v_0 = np.sqrt(self.k_b * 2 * temperature / self.mass_matrix)
+            v_0 = np.sqrt(self.k_b * temperature / self.mass_matrix)
             print("v_0", v_0)
             self.vitesse = fact_vitesse_random * v_0
             print("vit", self.vitesse)
@@ -91,6 +94,9 @@ class MoleculeH2O:
             self.vitesse = np.zeros(self.position.shape)
 
     def calcul_force(self):
+        """
+        prend en compte la force de langevin
+        """
         # calculs préliminaires
         u_OHa = self.position[1] - self.position[0]
         r_OHa  = np.linalg.norm(u_OHa)
@@ -106,12 +112,19 @@ class MoleculeH2O:
         f_Hb = self.K*(self.r_0 - r_OHb) * u_OHb + self.C / r_OHb * (np.cos(self.theta_0) - cos_theta) * (u_OHa - cos_theta * u_OHb)
         f_O = -f_Ha - f_Hb
         # print(f_O, f_Ha, f_Hb)
-        matrix_force = np.array([f_O, f_Ha, f_Hb])
+        matrix_force_conserv = np.array([f_O, f_Ha, f_Hb])
         # print(matrix_force)
 
         # assert np.sum(matrix_force, axis=0).all() == 0, f"la somme des forces doit être nulle {np.sum(matrix_force, axis=0)}"
         # note : les vecteurs u sont dans la base (x, y, z) donc matrix_force aussi
         # assert np.all(matrix_force[:, -1] == 0), f"la force en z doit être nulle : {matrix_force[:, -1]}"
+        # self.vitesse = (3 * self.position - 4*self.position_precedente + self.position_2precedente)/(2*self.dt)
+        matrix_force_langevin_dissip = - self.gamma_langevin * self.mass_matrix * self.vitesse
+        # print(self.mass_matrix, self.vitesse, self.mass_matrix*self.vitesse)
+        # input()
+        matrix_force_langevin_stoch = np.random.normal(loc=0, scale=1, size=self.position.shape) * np.sqrt(2 * self.gamma_langevin * self.k_b * self.temperature * self.mass_matrix/ self.dt)
+        # self.max_langevin_force = np.maximum(self.max_langevin_force, np.abs(matrix_force_langevin_stoch))
+        matrix_force = matrix_force_conserv + matrix_force_langevin_dissip + matrix_force_langevin_stoch
         return matrix_force
     
     def calcul_potentiel(self, consider_before=True):
@@ -148,7 +161,7 @@ class MoleculeH2O:
         # print(vitesse_centre_masse)
         energie_cinetique = self.calcul_cinetique()
         energie_mecanique = energie_cinetique + self.calcul_potentiel(consider_before=True)
-        temperature = energie_cinetique / (3*3-3) / self.k_b
+        temperature = energie_cinetique / (3*3) / self.k_b * 2
         if update_historique:
             # self.history_centre_masse.append(centre_masse)
             self.history_energie_mecanique.append(energie_mecanique)
@@ -185,13 +198,14 @@ class MoleculeH2O:
                 print(f"Attention: l'énergie mécanique n'est pas conservée: {energie_mecanique} J (diff {(energie_mecanique - self.energie_meca_temps0) / (self.energie_meca_temps0 - 0):.2e})")
         
 
-    def update_position(self, new_position, update_history=True, check_convergence=True):
+    def update_position(self, new_position, new_vitesse, update_history=True, check_convergence=True):
         self.nb_iterations += 1
         self.position_2precedente = self.position_precedente.copy()
         self.position_precedente = self.position.copy()
         self.position = new_position.copy()
+        self.vitesse = new_vitesse.copy()
 
-        self.vitesse = (self.position - self.position_2precedente) / (2 * self.dt)
+        # self.vitesse = (3 * self.position - 4*self.position_precedente + self.position_2precedente)/(2*self.dt)
 
         if update_history and self.nb_iterations % self.save_one_on_historique == 0:
             self.update_historique(check_convergence=check_convergence)
