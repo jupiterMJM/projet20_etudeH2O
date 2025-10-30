@@ -2,7 +2,7 @@ import numpy as np
 
 
 class MoleculeH2O:
-    def __init__(self, temperature=0, dt=None, save_one_on_historique=1, gamma_langevin=1e11):
+    def __init__(self, temperature=0, dt=None, save_one_on_historique=1, gamma_langevin=1e13):
         # constantes indépendantes du problème
         self.m_H = 1.6735575e-27    # en kg
         self.m_O = 2.6566962e-26    # en kg
@@ -12,8 +12,8 @@ class MoleculeH2O:
         self.save_one_on_historique = save_one_on_historique
 
         # constantes calculées en 0e et 1e question
-        self.K = 815#794        # N/m
-        self.C = 7.39e-19# 2.94e-18   # N.m.rad^-2
+        self.K = 763       # N/m
+        self.C = 6.97e-19#7.39e-19# 2.94e-18   # N.m.rad^-2
         # self.C = 1e-16
 
         self.initialize_molecule(temperature=temperature)
@@ -71,16 +71,16 @@ class MoleculeH2O:
         # fact_vitesse_random = np.ones(self.position.shape)
         if temperature > 0:
             v_0 = np.sqrt(self.k_b * temperature / self.mass_matrix)
-            print("v_0", v_0)
+            # print("v_0", v_0)
             self.vitesse = fact_vitesse_random * v_0
-            print("vit", self.vitesse)
+            # print("vit", self.vitesse)
             
             vitesse_centre_masse = (self.mass_matrix.T @ self.vitesse) / np.sum(self.mass_matrix)
-            print("vitesse centre de masse", vitesse_centre_masse)
+            # print("vitesse centre de masse", vitesse_centre_masse)
             self.vitesse = self.vitesse - vitesse_centre_masse
-            print("vit sans cm", self.vitesse)
+            # print("vit sans cm", self.vitesse)
             vitesse_centre_masse = (self.mass_matrix.T @ self.vitesse) / np.sum(self.mass_matrix)
-            print("vitesse centre de masse apres soustraction", vitesse_centre_masse)
+            # print("vitesse centre de masse apres soustraction", vitesse_centre_masse)
 
             # recalibrage des vitesses
             T_prime = np.sum(self.mass_matrix * self.vitesse**2 / 2) / (3*3-3) * 2 / self.k_b

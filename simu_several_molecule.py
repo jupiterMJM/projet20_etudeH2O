@@ -8,35 +8,41 @@ import numpy as np
 ## CONFIGURATION
 #####################################################
 temperature = 300  # en K
-dt =  1/100 * 1/(3756e2 * 3e8)/4 # pas de temps en s
-nb_molecules = 10
+dt =  1/100 * 1/(3756e2 * 3e8) # pas de temps en s
+nb_molecules = 5
 print(f"dt = {dt:.2e} s")
-print("ATTENTION, Le systeme doit etre microcanonique pour que la simulation soit valide (pas de force de langevin)" )
 #####################################################
 
 
 all_molecules = [MoleculeH2O(temperature=temperature, dt=dt) for _ in range(nb_molecules)]
 
 for molecule in all_molecules:
-    molecule.position_precedente = molecule.position.copy()
-    molecule.position += molecule.vitesse * dt + molecule.calcul_force() * dt**2 / (2 * molecule.mass_matrix)
-
+    for _ in range(2):
+        molecule.position_2precedente = molecule.position_precedente.copy()
+        molecule.position_precedente = molecule.position.copy()
+        molecule.position += molecule.vitesse * dt
 # un essai: randomisation des "t_0" pour chaque molécule
 print("[INFO] Randomisation des t_0")
 for molecule in tqdm(all_molecules):
     random_steps = np.random.randint(0, 10000)
     for _ in range(random_steps):
         force = molecule.calcul_force()
-        next_position = 2 * molecule.position - molecule.position_precedente + force * dt**2 / molecule.mass_matrix #t+dt
-        molecule.update_position(next_position, update_history=False)
+        new_position = 2 * molecule.position - molecule.position_precedente + force * dt**2 / molecule.mass_matrix #t+dt
+        new_vitesse = (3 * new_position - 4 * molecule.position + molecule.position_precedente) / (2 * dt)
 
+        # updating the history
+        molecule.update_position(new_position=new_position, new_vitesse=new_vitesse, check_convergence=False, update_history=False)
+    
 print("[INFO] Début de la simulation")
 for step in tqdm(range(100000)):
     for molecule in all_molecules:
         force = molecule.calcul_force()
-        next_position = 2 * molecule.position - molecule.position_precedente + force * dt**2 / molecule.mass_matrix #t+dt
-        molecule.update_position(next_position, check_convergence=False)
+        new_position = 2 * molecule.position - molecule.position_precedente + force * dt**2 / molecule.mass_matrix #t+dt
+        new_vitesse = (3 * new_position - 4 * molecule.position + molecule.position_precedente) / (2 * dt)
 
+        # updating the history
+        molecule.update_position(new_position=new_position, new_vitesse=new_vitesse, check_convergence=False)
+    
 ######################################################
 ## DATA ANALYSIS
 ######################################################
@@ -141,8 +147,8 @@ for molecule in all_molecules:
     all_densite_g.append(densite_g)
     ax1.plot(wavenumbers_cm, densite_g, alpha=0.3)
     # densite_g  /= (molecule.k_b * temperature * N * dt)
-    all_degrees_liberty.append(np.cumsum(densite_g)/np.sum(densite_g) * 6)
-    ax2.plot(wavenumbers_cm, np.cumsum(densite_g)/np.sum(densite_g) * 6, alpha=0.3)
+    all_degrees_liberty.append(np.cumsum(densite_g)/np.sum(densite_g) * 9)
+    ax2.plot(wavenumbers_cm, np.cumsum(densite_g)/np.sum(densite_g) * 9, alpha=0.3)
     # fig2.plot(wavenumbers_cm, np.cumsum(densite_g)/np.sum(densite_g) * 6, alpha=0.3)
 all_degrees_liberty = np.array(all_degrees_liberty)
 mean_degrees_liberty = np.mean(all_degrees_liberty, axis=0)
@@ -150,5 +156,18 @@ all_densite_g = np.array(all_densite_g)
 mean_densite_g = np.mean(all_densite_g, axis=0)
 ax1.plot(wavenumbers_cm, mean_densite_g, color='k', linewidth=2, label="Moyenne")
 ax2.plot(wavenumbers_cm, mean_degrees_liberty, color='k', linewidth=2, label="Moyenne")
+
+ax1.set_xlabel("Nombre d'onde (cm⁻¹)")
+ax1.set_ylabel("Densité de states g(v)")
+# ax1.set_title(f"Densité de states g(v) pour chaque molécule (T0={temperature} K, dt={dt:.2e} s, nb_mol={nb_molecules})")
+ax1.grid()
+ax1.legend()
+ax2.set_xlabel("Nombre d'onde (cm⁻¹)")
+ax2.set_ylabel("Degrés de liberté cumulés")
+# ax2.set_title(f"Degrés de liberté cumulés pour chaque molécule (T0={temperature} K, dt={dt:.2e} s, nb_mol={nb_molecules})")
+ax2.grid()
+ax2.legend()
+
+
 
 plt.show()
