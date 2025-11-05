@@ -76,21 +76,67 @@ point_Hb, = ax.plot([], [], 'go', label='Hb')
 circle = plt.Circle((0, 0), radius=molecule.r_0, color='gray', fill=False, linestyle='--')
 ax.add_artist(circle)
 
+
+
+import numpy as np
+
+def project_all_point_on_plane(point1, point2, point3):
+    """
+    Projette 3 points 3D sur le plan qu'ils définissent et renvoie leurs coordonnées 2D
+    dans le repère local du plan (origine = point1).
+    
+    Paramètres
+    ----------
+    point1, point2, point3 : array-like (3,)
+        Coordonnées des 3 points dans l'espace.
+
+    Retour
+    ------
+    coords_2d : np.ndarray de forme (3, 2)
+        Coordonnées des points dans le plan (origine = point1).
+        Le premier point est toujours (0,0).
+    """
+    masse_O = molecule.mass_matrix[0]
+    masse_H = molecule.mass_matrix[1]
+
+    centre_masse = (masse_O * np.array(point1) + masse_H * np.array(point2) + masse_H * np.array(point3)) / (masse_O + 2 * masse_H)
+    # Conversion en vecteurs numpy
+    A = np.array(point1, dtype=float)
+    B = np.array(point2, dtype=float)
+    C = np.array(point3, dtype=float)
+    
+    # Vecteurs du plan
+    u = B - A
+    v = C - A
+    
+    # Normal au plan
+    n = np.cross(u, v)
+    
+    # Base orthonormée du plan
+    u_prime = (u+v)/2
+    e1 = u_prime / np.linalg.norm(u_prime)
+    e2 = np.cross(n, e1)
+    e2 /= np.linalg.norm(e2)
+    
+    # Coordonnées locales des trois points
+    points = [A, B, C]
+    coords_2d = []
+    for P in points:
+        AP = P - centre_masse
+        xi = np.dot(AP, e1)
+        eta = np.dot(AP, e2)
+        coords_2d.append([xi, eta])
+    
+    return np.array(coords_2d)
+
+
 def update(frame):
     # Compute the normal vector of the plane defined by the three points
     p1 = history_position_O[frame]
     p2 = history_position_Ha[frame]
     p3 = history_position_Hb[frame]
-    normal_vector = np.cross(p2 - p1, p3 - p1)
-    normal_vector /= np.linalg.norm(normal_vector)  # Normalize the vector
+    projected_O, projected_Ha, projected_Hb = project_all_point_on_plane(p1, p2, p3)
 
-    # Define the plane and project the points onto it
-    def project_onto_plane(point, plane_point, normal):
-        return point - np.dot(point, normal) * normal
-
-    projected_O = project_onto_plane(p1, p1, normal_vector)
-    projected_Ha = project_onto_plane(p2, p1, normal_vector)
-    projected_Hb = project_onto_plane(p3, p1, normal_vector)
 
     # Update the positions in the plane
     point_O.set_data([projected_O[0]], [projected_O[1]])
@@ -107,10 +153,10 @@ def update(frame):
     # point_Hb.set_3d_properties([history_position_Hb[frame, 2]])
     return point_O, point_Ha, point_Hb
 
-ani = animation.FuncAnimation(fig, update, frames=len(history_position_O), interval=1, blit=True)
+ani = animation.FuncAnimation(fig, update, frames=len(history_position_O), interval=10, blit=True)
 ax.legend()
-# plt.show()
-
+# Save the last 5 seconds of the simulation as a video
+ani.save('molecule_simulation.mp4', writer='ffmpeg', fps=30, dpi=200)
 
 # plotting
 plt.figure(figsize=(10,5))
@@ -162,14 +208,14 @@ mask = freqs > 0
 freqs_pos = freqs[mask]
 # amp_pos = 2.0 / N * np.abs(fft_vals[mask])  # facteur 2 pour spectre mono-face
 wavenumbers_cm = freqs_pos / (3e10)  # conversion Hz -> cm^-1
-plt.figure(figsize=(8,5))
+plt.figure()
 plt.plot(wavenumbers_cm, np.abs(fft_vals[mask]))
 # plt.xlim(0, 4000)   
 plt.xlabel(r"Nombres d'onde $\tilde{\nu}$ (cm$^{-1}$)")
 plt.ylabel("Amplitude FFT (a.u.)")
-plt.title("Spectre FFT de $r_{OHa}(t)$ — abscisse en 1/λ (cm$^{-1}$)")
+plt.title("Spectre FFT de $r_{OHa}(t)$")
 plt.grid(True)
-plt.tight_layout()
+# plt.tight_layout()
 
 # FFT pour la liaison O-Hb
 r_OHb = np.array(molecule.history_liaison_OHb)
@@ -213,14 +259,13 @@ mask = freqs > 0
 freqs_pos = freqs[mask]
 # amp_pos = 2.0 / N * np.abs(fft_vals[mask])  # facteur 2 pour spectre mono-face
 wavenumbers_cm = freqs_pos / (3e10)  # conversion Hz -> cm^-1
-plt.figure(figsize=(8,5))
+plt.figure()
 plt.plot(wavenumbers_cm, np.abs(fft_vals[mask]))
 # plt.xlim(0, 4000)   
 plt.xlabel(r"Nombres d'onde $\tilde{\nu}$ (cm$^{-1}$)")
 plt.ylabel("Amplitude FFT (a.u.)")
-plt.title("Spectre FFT de $theta(t)$ — abscisse en 1/λ (cm$^{-1}$)")
+plt.title("Spectre FFT de $theta(t)$")
 plt.grid(True)
-plt.tight_layout()
 
 
 # etude des degrés de liberté

@@ -12,8 +12,8 @@ class MoleculeH2O:
         self.save_one_on_historique = save_one_on_historique
 
         # constantes calculées en 0e et 1e question
-        self.K = 815#794        # N/m
-        self.C = 7.39e-19# 2.94e-18   # N.m.rad^-2
+        self.K = 763#794        # N/m
+        self.C = 7.38e-19# 2.94e-18   # N.m.rad^-2
         # self.C = 1e-16
 
         self.initialize_molecule(temperature=temperature)
@@ -148,7 +148,7 @@ class MoleculeH2O:
         # print(vitesse_centre_masse)
         energie_cinetique = self.calcul_cinetique()
         energie_mecanique = energie_cinetique + self.calcul_potentiel(consider_before=True)
-        temperature = energie_cinetique / (3*3-3) / self.k_b
+        temperature = 2 * energie_cinetique / (3*3-3) / self.k_b
         if update_historique:
             # self.history_centre_masse.append(centre_masse)
             self.history_energie_mecanique.append(energie_mecanique)

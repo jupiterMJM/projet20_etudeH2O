@@ -8,7 +8,7 @@ import numpy as np
 ## CONFIGURATION
 #####################################################
 temperature = 300  # en K
-dt =  1/100 * 1/(3756e2 * 3e8)/4 # pas de temps en s
+dt =  1/100 * 1/(3756e2 * 3e8) # pas de temps en s
 nb_molecules = 10
 print(f"dt = {dt:.2e} s")
 print("ATTENTION, Le systeme doit etre microcanonique pour que la simulation soit valide (pas de force de langevin)" )
